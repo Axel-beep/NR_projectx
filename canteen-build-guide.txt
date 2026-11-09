@@ -1,0 +1,410 @@
+BUILD GUIDE: MAKING THE CANTEEN WEBSITE WITH CLAUDE CODE
+=========================================================
+
+Who this is for: someone with basic coding knowledge who will let
+Claude Code write most of the code, while staying in control by
+reviewing, testing and committing each step.
+
+Companion file: canteen-website-plan.txt (the "what"). This file is
+the "how", in order: Phase 0 first, then one feature at a time.
+
+Where Option A (Vercel + Supabase) and Option B (cost-free: Cloudflare
+Pages + R2 + Supabase Free) differ, both are shown.
+
+
+=====================================================================
+PART 1: HOW TO WORK WITH CLAUDE CODE (READ THIS FIRST)
+=====================================================================
+
+The loop for every feature
+--------------------------
+1. Start fresh: type /clear so old conversation doesn't confuse things.
+2. Switch to plan mode (press Shift+Tab until it says "plan mode").
+   Paste the feature prompt from this guide.
+3. Read Claude's plan. Ask questions if anything is unclear
+   ("why do we need this?", "explain this in simple terms").
+   Approve it only when you understand roughly what will happen.
+4. Let Claude build it. Approve file edits and commands as they come.
+5. Test it yourself (each feature below has a "Check it works" list).
+   Run the site with:   npm run dev   then open http://localhost:3000
+6. If something is broken, describe what you SEE, not what you think
+   the cause is. Paste error messages in full.
+   Example: "When I tap Report now and pick a photo, nothing happens.
+   The browser console shows: <paste error>"
+7. When it works, ask Claude:
+   "Commit this with a clear message and push to GitHub."
+   Pushing triggers an automatic deploy to your live site.
+
+Useful habits
+-------------
+- One feature per conversation. Use /clear between features.
+- Ask Claude to explain. After each feature, ask:
+  "Explain what you built, file by file, for a beginner."
+  You'll learn the codebase and catch misunderstandings early.
+- Commit often. If Claude breaks something, you can always go back:
+  "Undo the changes since the last commit."
+- Never paste secret keys into the chat. Put them in .env.local
+  yourself (Claude will tell you which names to use).
+- Run a shell command yourself by typing ! in front of it,
+  e.g.  ! npm run dev
+- If Claude goes in a wrong direction, press Esc to stop it and
+  redirect.
+- After big features, ask: "Review the code you just wrote for bugs
+  and security problems." (or run /code-review).
+
+
+=====================================================================
+PART 2: PHASE 0 - SETUP (about 1 day)
+=====================================================================
+
+Step 0.1 - Install tools on your computer
+-----------------------------------------
+- Node.js (LTS version) from nodejs.org
+- Git from git-scm.com
+- VS Code (optional, nice for viewing files)
+- Claude Code (you already have it)
+Check in a terminal:  node -v   and   git --version
+
+Step 0.2 - Create free accounts
+-------------------------------
+- GitHub (stores your code)
+- Supabase (database)
+- Option A: Vercel        Option B: Cloudflare
+
+Step 0.3 - Create the project
+-----------------------------
+Open a terminal in C:\Users\Owner\Documents\projectx, run  claude
+and give this prompt:
+
+  "Read canteen-website-plan.txt. Set up a new Next.js project in
+  this folder with TypeScript, Tailwind CSS and the App Router.
+  Initialise git with a sensible .gitignore (make sure .env.local is
+  ignored). Don't build any features yet. Explain each step as you
+  go, I'm a beginner."
+
+  Option B: add to the prompt:
+  "We will deploy to Cloudflare Pages/Workers, so set it up with the
+  OpenNext Cloudflare adapter (@opennextjs/cloudflare)."
+
+Check it works: npm run dev shows the default Next.js page.
+
+Step 0.4 - Give Claude permanent project instructions (CLAUDE.md)
+----------------------------------------------------------------
+Run  /init  then give this prompt:
+
+  "Add these rules to CLAUDE.md:
+  - The full product plan is in canteen-website-plan.txt; follow it.
+  - We use Option A (or: Option B) from that plan.
+  - I'm a beginner: keep code simple, add short comments, and explain
+    what you changed at the end of each task.
+  - Mobile-first design. Use the theme colours from the theme file.
+  - Never put secret keys in code; use environment variables.
+  - Enable Row Level Security on every Supabase table.
+  - Never use the Supabase service role key in browser code."
+
+Claude reads CLAUDE.md at the start of every conversation, so you
+don't have to repeat these rules.
+
+Step 0.5 - Connect Supabase
+---------------------------
+1. On supabase.com create a new project (pick a region close to you,
+   e.g. Frankfurt for the Netherlands). Save the database password.
+2. Prompt:
+   "Help me connect this app to Supabase. Tell me exactly which
+   values to copy from the Supabase dashboard and what to name them
+   in .env.local. Then install and set up the Supabase client for
+   both browser and server code."
+3. Copy the keys into .env.local yourself.
+
+Step 0.6 - Create the database tables
+-------------------------------------
+Prompt:
+  "Create the database tables from section 5 of the plan (canteens,
+  reports, arrivals, sponsors, flags) as a SQL migration file in
+  supabase/migrations. Include Row Level Security policies: anyone
+  can read canteens, visible reports, arrivals and active sponsors;
+  writes only happen through our server routes. Also write a seed
+  file with these canteens: <list your canteen names>.
+  Then tell me how to run it."
+
+Simplest way to run it: paste the SQL into the Supabase dashboard ->
+SQL Editor -> Run. (Later you can ask Claude to set up the Supabase
+CLI so migrations run from the terminal.)
+
+Check it works: in Supabase -> Table Editor you see the tables and
+your canteens.
+
+Step 0.7 - Theme colours
+------------------------
+Prompt:
+  "Create a theme with the Student Centre colours: primary <hex>,
+  secondary <hex>, accent <hex>, background <hex>. Set them up as
+  CSS variables and Tailwind colours, with a dark mode version.
+  Add the SC logo from public/logo.png to a simple header."
+(Put the logo file in the public folder first.)
+
+Step 0.8 - First deploy
+-----------------------
+1. Create an empty repository on GitHub.
+2. Prompt: "Commit everything and push to my new GitHub repo <url>."
+3. Deploy:
+   Option A: on vercel.com -> Add New Project -> import the GitHub
+             repo -> add the same environment variables as in
+             .env.local -> Deploy.
+   Option B: prompt Claude: "Walk me through deploying this to
+             Cloudflare with automatic deploys from GitHub, including
+             setting the environment variables."
+
+Check it works: your live URL shows the header with the SC colours.
+From now on, every push to GitHub updates the live site.
+
+
+=====================================================================
+PART 3: FEATURE BY FEATURE
+=====================================================================
+
+Each feature works from browser to database before you start the next.
+Remember the loop: /clear -> plan mode -> prompt -> review -> build ->
+test -> commit & push.
+
+
+FEATURE 1: Canteen list and canteen page (read-only)
+----------------------------------------------------
+Prompt:
+  "Build feature 1: the landing page shows a grid of canteen cards
+  from the canteens table (name, latest photo thumbnail or a
+  placeholder, 'last update X min ago', number of people incoming).
+  Tapping a card opens /canteen/[slug], which shows the canteen name
+  and an empty photo feed with a message 'No photos yet - be the
+  first!'. Leave space for a sponsor banner at the top of the landing
+  page (just an empty placeholder for now). Mobile-first."
+
+Check it works:
+- All your canteens appear on the home page.
+- Tapping one opens its page; the URL contains its name.
+- Looks good on your phone (open the live URL after pushing, or ask
+  Claude how to open the dev server on your phone via your Wi-Fi).
+
+
+FEATURE 2: Anonymous identity and bot protection
+------------------------------------------------
+Prompt:
+  "Build feature 2 from section 4 of the plan: give every visitor an
+  anonymous identity without registration, using Supabase anonymous
+  sign-in. Add Cloudflare Turnstile (invisible) and verify the token
+  on the server before the first post. Explain what I need to set up
+  in the Supabase and Cloudflare dashboards."
+
+Check it works:
+- Open the site; in Supabase -> Authentication you see an anonymous
+  user appear.
+- Reloading the page does NOT create a new user each time.
+
+
+FEATURE 3: Take and post a photo (the core feature)
+---------------------------------------------------
+Do this one in two smaller steps so it's easier to test.
+
+3a - Capture and compress in the browser
+  "Build feature 3a from section 3 of the plan, steps 1 and 2: a
+  'Report now' button on the canteen page that opens the phone's rear
+  camera with <input type='file' accept='image/*'
+  capture='environment'>. After a photo is taken, resize it to max
+  1280px and compress to WebP ~75% quality with a canvas (this also
+  strips EXIF/GPS data), and create a ~320px thumbnail. Show a preview
+  with the quiet/busy/packed status buttons and a 'Post' button.
+  Don't upload yet; just log the file sizes to the console."
+
+  Check: on your phone the camera opens; the preview shows; the
+  console shows a file of roughly 150-300 KB.
+
+3b - Upload and save
+  Option A prompt:
+  "Build feature 3b from section 3 of the plan, steps 3 and 4: when
+  Post is pressed, call POST /api/uploads which checks the rate limit
+  (1 photo per canteen per device per 5 minutes, 10 per hour) and
+  returns signed upload URLs for Supabase Storage. Upload the photo
+  and thumbnail, then call POST /api/reports to save the row with a
+  server-side timestamp. Validate file type and size (max 2 MB) on
+  the server. Show a friendly message if the rate limit is hit."
+
+  Option B prompt: same as above, but replace "Supabase Storage" with:
+  "Cloudflare R2, using presigned URLs. Explain how to create the R2
+  bucket and API token and how to make the photos publicly readable."
+
+  Check:
+  - Post a photo; it appears in Supabase (reports table) and in
+    storage (Supabase Storage or R2).
+  - Try posting again immediately; you get the rate-limit message.
+  - Download a posted photo and check it has no location data
+    (right-click -> Properties -> Details on Windows).
+
+
+FEATURE 4: Photo feed with live updates
+---------------------------------------
+Prompt:
+  "Build feature 4 from section 3, step 5 of the plan: the canteen
+  page shows the 20 newest visible reports, newest first, as
+  thumbnails with status and 'X min ago' (updating every 30 seconds).
+  Tapping a photo opens the full-size version. Infinite scroll loads
+  older photos. Subscribe to Supabase Realtime so new photos appear at
+  the top instantly for everyone. Photos older than 2 hours are shown
+  greyed out with an 'outdated' label. Update the landing page cards
+  to show the latest thumbnail."
+
+Check it works:
+- Open the same canteen on your laptop and your phone. Post from the
+  phone: it appears on the laptop without refreshing.
+- The time labels count up.
+
+
+FEATURE 5: "I'm coming" (arrivals with group size)
+--------------------------------------------------
+Prompt:
+  "Build feature 5 using the arrival logic in section 5 of the plan:
+  an 'I'm coming' button on the canteen page opens a small form with
+  ETA (now, 5, 10, 15, 30 min) and group size (1, 2-3, 4-6, 7+).
+  One active arrival per device; a new one replaces the old one, and
+  the user can cancel it. Show 'About X people arriving in the next
+  15 min' on the canteen page and the incoming count on the landing
+  page cards, updating live. Arrivals expire 10 minutes after their
+  ETA."
+
+Check it works:
+- Signal arrival with a group of 4; the counter goes up on another
+  device.
+- Signal again for another canteen; the first one disappears.
+- Cancel works.
+
+
+FEATURE 6: Automatic cleanup job
+--------------------------------
+Prompt:
+  "Build feature 6: a scheduled job that runs once a day and deletes
+  reports older than 24 hours together with their photo files, and
+  deletes expired arrivals.
+  Option A: use a Vercel Cron Job.
+  Option B: use a Cloudflare Cron Trigger or a GitHub Actions
+  schedule. Also add a GitHub Actions job that pings Supabase every
+  3 days so the free project doesn't pause.
+  Protect the endpoint with a secret so outsiders can't trigger it."
+
+Check it works: ask Claude how to trigger the job manually once, and
+confirm old test photos disappear from the database and storage.
+
+
+FEATURE 7: Moderation (flagging bad photos)
+-------------------------------------------
+Prompt:
+  "Build feature 7 from section 3, step 4 of the plan: a 'Report
+  photo' button on every photo (one flag per device per photo, with a
+  reason). After 3 flags the photo is hidden automatically. Add a
+  simple password-protected /admin page where I can see hidden
+  photos and either restore or delete them. Store the admin password
+  as an environment variable."
+
+  Optional (Option A, small cost): "Also check each new photo with an
+  image moderation API and hide it if flagged. Suggest a provider
+  with a free tier."
+
+Check it works: flag a test photo from 3 different browsers (normal
+window, private window, phone); it disappears and shows up in /admin.
+
+
+FEATURE 8: Sponsor slots
+------------------------
+Prompt:
+  "Build feature 8 from section 6 of the plan: show sponsors from the
+  sponsors table in three places (top banner on the landing page, a
+  card after every 5th photo in the feed, a footer slot). Only show
+  active sponsors, rotate them by weight, and count views and clicks.
+  Add a sponsors section to /admin where I can add/edit sponsors,
+  upload their image, set dates, and see view and click counts.
+  Label sponsor content clearly as 'Sponsored'."
+
+Check it works: add a test sponsor in /admin; it appears in all three
+spots; clicking it increases the click count.
+
+
+FEATURE 9: PWA, privacy and polish
+----------------------------------
+Prompt:
+  "Build feature 9:
+  1. Make the site an installable PWA (manifest, icons from the SC
+     logo, simple offline page).
+  2. Add a privacy page: photos are anonymous, location data is
+     removed, photos are deleted after 24 hours, don't make people
+     the focus of photos. Show a one-time notice before someone's
+     first photo.
+  3. Go through every page and improve loading states, error
+     messages and accessibility (tap target sizes, contrast, alt
+     text). Check that the dark mode works everywhere."
+
+Check it works:
+- On your phone, 'Add to Home Screen' installs the app with the SC
+  icon.
+- Test with airplane mode on: you see the offline page, not an error.
+
+
+LAUNCH CHECKLIST
+----------------
+Before sharing the link with students, ask Claude:
+  "Do a pre-launch check: review all code for security problems
+  (especially Row Level Security policies, rate limits, the admin
+  page and secret handling), confirm no secrets are committed to git,
+  and list anything I should test by hand."
+Then:
+- Option A: upgrade Supabase and Vercel to Pro (see plan section 8).
+- Test on both iPhone and Android.
+- Ask a few friends to use it for a day and collect feedback.
+- Get approval from the Student Centre / canteen operators.
+
+
+=====================================================================
+PART 4: LATER - PEAK-TIME PREDICTION (PHASE 3)
+=====================================================================
+Start this after the site has been live for a few weeks, so there is
+data to learn from.
+
+Feature 10: Collect data
+  "Build feature 10 from Phase 3 of the plan (task 18): every 15
+  minutes during opening hours, save a snapshot per canteen with the
+  number of recent reports, the average status score (quiet=1,
+  busy=2, packed=3) and the incoming arrivals. Use a scheduled job.
+  These snapshots must NOT be deleted by the daily cleanup."
+
+Feature 11: "Usually busy at..." chart
+  "Build feature 11 (task 19): for each canteen, average the busyness
+  score per weekday and 15-minute slot over the last 4-8 weeks and
+  show it as a bar chart on the canteen page, highlighting the
+  current time. Hide the chart until there are at least 2 weeks of
+  data."
+
+Feature 12: Live vs usual
+  "Build feature 12 (task 20): combine the historical average with
+  the live signal (recent statuses and incoming arrivals) and show a
+  message like 'Busier than usual right now' or 'Quiet now - peak
+  expected in about 20 min'. Explain the formula you chose in simple
+  terms."
+
+Feature 13: Alerts
+  "Build feature 13 (task 21): opt-in Web Push notifications without
+  an account. A user can pick a canteen and get notified when it
+  becomes quiet. Explain the browser limitations, especially on
+  iPhone (it must be installed as a PWA)."
+
+
+=====================================================================
+PART 5: WHEN YOU GET STUCK
+=====================================================================
+- Error you don't understand: paste the full error and ask
+  "Explain this error simply and fix it."
+- Claude keeps failing at the same thing: /clear, then describe the
+  problem from scratch with the error and what you already tried.
+- Something worked before and now doesn't: "Show me what changed
+  since the last commit" or "Go back to the last commit."
+- Not sure what Claude did: "Summarise the changes you made and
+  why."
+- Before anything costs money, deletes data or touches the live
+  database, double-check what will happen. Ask Claude to explain it
+  first.

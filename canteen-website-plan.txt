@@ -1,0 +1,311 @@
+PLAN: REAL-TIME CANTEEN STATUS WEBSITE
+======================================
+
+Goal: a website where students can see the current situation at campus
+canteens through recent photos, post their own photos without registering,
+and signal that they (or a group) are on their way.
+
+
+1. RECOMMENDED STACK
+--------------------
+- Frontend: Next.js (React), mobile-first, installable as a PWA.
+  Most users will be on phones, standing in or walking to a canteen.
+- Backend, database, storage: Supabase (Postgres, file storage, realtime).
+  Anonymous sessions, image storage and live updates are built in, so
+  very little custom server code is needed.
+- Hosting: Vercel (frontend) and Supabase (backend).
+
+This is the PRIMARY PLAN (Option A). See section 8 for its costs and
+section 9 for a cost-free alternative (Option B).
+
+
+2. USER FLOW
+------------
+1. Landing page: a grid of canteen cards. Each card shows the latest
+   thumbnail, how long ago it was posted, and how many people are on
+   their way. A sponsor banner slot sits at the top.
+2. The user taps a canteen and goes to the canteen page, which has:
+   - A photo feed, newest first, with a timestamp on each photo
+     ("3 min ago").
+   - A "Report now" button to take a photo and add an optional quick
+     status: quiet (green), busy (yellow), packed (red).
+   - An "I'm coming" button to pick an arrival time (now, 5, 10, 15 or
+     30 min) and a group size (1, 2-3, 4-6, 7+).
+   - An arrivals summary, e.g. "~14 people arriving in the next 15 min".
+   - A sponsor slot between feed items, e.g. after every 5th photo.
+
+
+3. HOW PHOTOS GET TAKEN AND POSTED
+----------------------------------
+
+Step 1: Capture (in the browser)
+- Start with:
+    <input type="file" accept="image/*" capture="environment">
+  It opens the rear camera directly on phones, needs no special
+  permissions, and works on iOS and Android.
+- A live in-page camera (getUserMedia) could come later. The file-input
+  approach is simpler and more reliable.
+- Optionally allow camera only (no gallery uploads) to discourage old
+  photos. The capture attribute encourages this but cannot fully enforce
+  it, so the server also checks freshness (see step 5).
+
+Step 2: Process (in the browser, before upload)
+- Resize to a maximum of about 1280px and compress to WebP or JPEG at
+  ~75% quality, bringing a photo to roughly 150-300 KB. Re-encoding
+  through a <canvas> element does this.
+- Re-encoding also strips EXIF metadata, including GPS location and
+  device info. This matters for privacy.
+- Generate a small thumbnail (~320px) for the canteen cards.
+
+Step 3: Upload
+1. The client asks the backend for permission to post:
+     POST /api/uploads   with { canteenId }
+2. The backend checks the rate limit and returns a signed upload URL.
+3. The client uploads the image straight to storage at:
+     photos/{canteenId}/{uuid}.webp
+4. The client confirms:
+     POST /api/reports   with { canteenId, photoPath, status }
+5. The backend inserts a row into "reports" with a server-side
+   created_at. The server's time is the official timestamp, never the
+   phone's clock.
+
+Step 4: Server-side checks
+- Rate limit: e.g. at most 1 photo per canteen per device every
+  5 minutes, and 10 per hour overall.
+- File checks: verify the file type and size (max ~2 MB).
+- Optional automatic moderation: run an image-moderation API
+  (nudity/violence filter) on insert and hide anything flagged.
+- Community moderation: a "Report photo" button; after 3 flags, a photo
+  is hidden automatically until reviewed.
+
+Step 5: Show it live to everyone
+- Everyone viewing a canteen page subscribes to new rows in "reports"
+  for that canteen through Supabase Realtime. A new photo appears at the
+  top instantly, without a page refresh.
+- The feed is fetched with:
+    ORDER BY created_at DESC LIMIT 20
+  with infinite scroll for older photos.
+- "X min ago" labels are computed on the client and refresh every
+  30 seconds.
+- Freshness: photos older than about 2 hours are greyed out or labelled
+  "outdated". Photos older than 24 hours are deleted by a daily
+  scheduled job, which keeps storage costs low.
+
+
+4. POSTING WITHOUT REGISTERING (ANONYMOUS IDENTITY)
+---------------------------------------------------
+- On first visit, the site creates an anonymous session using Supabase
+  anonymous sign-in, or a random UUID stored in localStorage plus a
+  cookie.
+- This gives each device an ID for rate limiting, for "undo my arrival",
+  and for blocking abusers, without any sign-up.
+- An invisible CAPTCHA such as Cloudflare Turnstile on the first post
+  blocks bots.
+- Limitation: anonymous IDs can be reset by clearing browser data. Pair
+  them with IP-based rate limits as a backstop.
+
+
+5. DATA MODEL
+-------------
+
+canteens
+  id, name, slug, location, opening_hours, thumbnail_url
+
+reports  (photo + status)
+  id, canteen_id, device_id, photo_path, thumb_path,
+  status (quiet | busy | packed | null), created_at,
+  flag_count, hidden (bool)
+
+arrivals  (people on their way)
+  id, canteen_id, device_id, group_size,
+  eta (timestamp = now + chosen minutes), created_at, cancelled (bool)
+
+sponsors
+  id, name, image_url, link_url, placement (top | feed | footer),
+  canteen_id (nullable = all canteens), active_from, active_to, weight
+
+flags
+  id, report_id, device_id, reason, created_at
+
+Arrival logic:
+- One active arrival per device. Signalling a new one replaces the old
+  one.
+- An arrival counts as "incoming" while now < eta + 10 min, and expires
+  after that.
+- The canteen page shows the sum of group_size for arrivals whose ETA
+  falls in the next 15 or 30 minutes.
+
+
+6. USER INTERFACE AND SPONSOR SLOTS
+-----------------------------------
+- The design uses the Student Centre (SC) color palette as CSS
+  variables. (Exact SC brand colours and logo still needed.)
+- Minimal interface: large tap targets, one main action per screen, and
+  a dark mode.
+- Sponsor slots:
+  - One top banner on the landing page.
+  - One card inside each canteen's feed.
+  - One footer slot.
+- Ads are served from the "sponsors" table, rotated by weight, and
+  clicks and views are counted so sponsors can be shown numbers.
+
+
+7. TASK LIST (PHASED)
+---------------------
+
+Phase 0: Setup (about 1 day)
+  1. Create the repo, Next.js project and Supabase project.
+  2. Put the SC colours and fonts into a theme file.
+  3. Seed the "canteens" table.
+
+Phase 1: Core features, minimum viable product (about 1-2 weeks)
+  4. Anonymous sessions (device ID plus Turnstile).
+  5. Landing page with the canteen grid.
+  6. Canteen page with the photo feed (newest first, timestamps).
+  7. Photo capture, resizing and compression in the browser.
+  8. Signed upload, report insert, and the rate-limit API.
+  9. Realtime feed subscription.
+ 10. "I'm coming" form (ETA and group size) and the arrivals counter.
+ 11. Status buttons (quiet / busy / packed).
+ 12. Daily scheduled job to delete photos older than 24 hours and
+     expired arrivals.
+
+Phase 2: Safety and polish (about 1 week)
+ 13. Flag/report button and auto-hide.
+ 14. Optional automatic moderation API.
+ 15. PWA support: installable, offline shell.
+ 16. Sponsor slots and an admin page for managing sponsors
+     (a simple password-protected /admin).
+ 17. Privacy notice: no faces as the focus, EXIF stripped, 24-hour
+     retention. This matters under GDPR if in the EU, since photos of
+     people are personal data.
+
+Phase 3: Peak-time prediction (future)
+ 18. Log hourly snapshots per canteen: number of reports, average
+     status score, and incoming arrivals.
+ 19. Algorithm version 1: for each canteen, average the busyness score
+     by weekday x 15-minute slot over the last 4-8 weeks, and show it as
+     a "Usually busy at 12:15" chart (similar to Google's Popular
+     Times).
+ 20. Algorithm version 2: blend the historical average with the live
+     signal (recent statuses plus incoming arrivals) to show "Busier
+     than usual right now" or "Quiet now, peak expected in 20 min".
+ 21. Alerts: opt-in web push notifications such as "Canteen X is quiet
+     now". These still need no account, since a push subscription is
+     tied to the device.
+
+
+8. COSTS OF THE PRIMARY PLAN (OPTION A: VERCEL + SUPABASE)
+----------------------------------------------------------
+Prices are approximate (late 2026) and change over time. Check the
+Vercel and Supabase pricing pages before committing.
+
+Why the free tiers are not enough for Option A:
+- Vercel's free "Hobby" plan is for non-commercial use only. Sponsor
+  ads make the site commercial, so the Pro plan is required.
+- Supabase's free plan includes only ~5 GB of bandwidth per month.
+  Serving photos to ~500 daily visitors uses roughly 9 GB per month.
+  Free projects also pause after about a week without activity.
+
+Monthly costs:
+  Vercel Pro (1 team member) ............ ~$20 / month
+  Supabase Pro .......................... ~$25 / month
+      includes ~100 GB storage, ~250 GB bandwidth, no pausing,
+      daily backups
+  ---------------------------------------------------------
+  Total ................................. ~$45 / month (~EUR 42)
+                                          ~$540 / year
+
+One-off / yearly costs:
+  Custom domain (optional) .............. ~EUR 10 / year
+
+Optional extras:
+  Automatic photo moderation API ........ ~$0-15 / month
+      (e.g. Google Cloud Vision SafeSearch: first ~1,000 images per
+      month free, then ~$1.50 per 1,000 images)
+  Extra bandwidth beyond plan limits .... only at thousands of
+                                          daily users
+
+Ways to lower Option A costs without switching plans:
+- Start on Supabase Free during development and testing, and upgrade
+  to Pro only at launch.
+- Develop on Vercel Hobby (non-commercial), and upgrade to Pro only
+  when sponsor ads go live.
+- Use sponsor income to cover the ~EUR 42 / month.
+
+
+9. COST-FREE ALTERNATIVE (OPTION B)
+-----------------------------------
+Goal: run the site for EUR 0 per month at student scale. Everything in
+sections 2-7 stays the same; only where things run changes.
+
+Changes compared to Option A:
+
+1. Host on Cloudflare Pages instead of Vercel.
+   - Free, allows commercial use (sponsor ads are fine), and has no
+     bandwidth cap.
+   - Pages Functions run the few backend routes (signed upload URL,
+     rate limiting, report insert).
+
+2. Store photos in Cloudflare R2 instead of Supabase Storage.
+   - Bandwidth is the main cost driver. R2 charges nothing for
+     bandwidth and includes 10 GB of storage for free.
+   - Because photos are deleted after 24 hours, only a few hundred MB
+     are ever stored.
+   - Uploads use R2 presigned URLs, created by a Pages Function.
+
+3. Keep Supabase (Free plan) for the database, realtime updates and
+   anonymous sessions.
+   - The data is small text rows, so the free plan is plenty.
+   - Catch: free projects pause after about a week without activity
+     (e.g. holidays). A free GitHub Actions scheduled job that pings
+     the database every few days prevents this.
+
+Other free choices:
+  Bot protection ......... Cloudflare Turnstile (free)
+  Photo moderation ....... skip paid APIs; use community flags with
+                           auto-hide after 3 flags
+  Domain ................. yoursite.pages.dev (free), or ask the SC /
+                           university for a subdomain such as
+                           canteen.university.nl; own domain ~EUR 10/yr
+  Push alerts (Phase 3) .. Web Push, no paid service needed
+  Daily cleanup job ...... Cloudflare Cron Triggers or GitHub Actions
+                           (both free)
+
+Keeping bandwidth low (useful for both options):
+- Show thumbnails (~30 KB) in the feed; load the full photo only when
+  tapped.
+- Compress photos in the browser before upload.
+- Show only the 20 most recent photos; load more on scroll.
+- Delete photos after 24 hours.
+
+Option B costs:
+  Monthly ............................... EUR 0
+  Optional custom domain ................ ~EUR 10 / year
+  When you'd start paying ............... probably only at thousands
+                                          of daily users
+
+Trade-offs of Option B:
+- Slightly more setup work: two providers (Cloudflare + Supabase)
+  instead of one tightly integrated pair.
+- No automatic database backups on Supabase Free; export manually
+  now and then if the data matters.
+- Must watch for the Supabase inactivity pause.
+
+
+Comparison at a glance:
+                        Option A (primary)   Option B (cost-free)
+  Monthly cost          ~EUR 42              EUR 0
+  Setup effort          Lower                Slightly higher
+  Sponsor ads allowed   Yes (on Pro)         Yes
+  Backups               Daily, automatic     Manual
+  Project pausing       No                   Yes, unless pinged
+
+
+10. OPEN QUESTIONS
+------------------
+- What are the SC brand colours, and is there a logo?
+- How many canteens are there, and what are their names?
+- Who moderates? Is there a student or staff contact?
+- Should uploads be camera-only, or are gallery uploads allowed?
+- Which language should the site be in: Dutch, English, or both?
