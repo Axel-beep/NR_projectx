@@ -14,8 +14,11 @@ registering, and signal that they (or a group) are on their way.
     (`@opennextjs/cloudflare`). The plan says "Pages Functions"; in this
     project backend routes are Next.js route handlers (`src/app/api/...`)
     that run on the Worker.
-  - Photos: Cloudflare R2 (presigned upload URLs), not Supabase Storage.
+  - Photos: **Supabase Storage** (signed upload URLs). NOT Cloudflare R2:
+    R2 requires a payment card and the owner chose not to add one.
+    Keep photo bandwidth very low (Supabase Free has a monthly egress limit).
   - Database, realtime, anonymous sessions: Supabase Free plan.
+  - Don't use Cloudflare services that need a payment card (R2 etc.).
   - Bot protection: Cloudflare Turnstile. Moderation: community flags,
     auto-hide after 3 flags. Cleanup: Cloudflare Cron Triggers.
   - Never add a paid service without asking first.
@@ -37,6 +40,12 @@ registering, and signal that they (or a group) are on their way.
 - `npm run lint` - check code
 
 ## Environment notes
+
+- Do NOT enable `cacheComponents` or `partialPrefetching` in
+  `next.config.ts`: with the OpenNext adapter they make the Worker hang
+  (every page returned 500 on Cloudflare).
+- Live site: https://canteen-status.trimbolic69.workers.dev
+  Cloudflare builds and deploys automatically on every push to `main`.
 
 - Windows machine. OpenNext warns it is not fully supported on Windows;
   if `npm run preview`/`deploy` fails oddly, build via Cloudflare's GitHub
