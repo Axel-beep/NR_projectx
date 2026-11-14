@@ -24,7 +24,10 @@ registering, and signal that they (or a group) are on their way.
   - Never add a paid service without asking first.
 - I'm a beginner: keep code simple, add short comments, and explain what
   you changed at the end of each task.
-- Mobile-first design. Use the theme colours from the theme file.
+- Mobile-first design. Use the theme colours from the theme file
+  (`src/app/globals.css`: classes like `bg-primary`, `bg-surface`,
+  `text-muted`, `bg-quiet/busy/packed`). Never hard-code hex colours in
+  components. UI text is in Croatian.
 - Never put secret keys in code; use environment variables.
   Local secrets go in `.env.local` / `.dev.vars` (both git-ignored).
 - Enable Row Level Security on every Supabase table.
