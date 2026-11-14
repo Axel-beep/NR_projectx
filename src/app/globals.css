@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
+/* =====================================================================
+   THEME - the only place where colours are defined.
+   Brand blue comes from the SC fsb logo (#184898).
+   Use them in components as Tailwind classes, e.g.
+     bg-primary  text-primary  bg-surface  text-muted  border-border
+     bg-quiet / bg-busy / bg-packed  (canteen status colours)
+   To change the look later, only edit the values below.
+   ===================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* brand */
+  --primary: #184898;        /* logo blue: buttons, links, header accents */
+  --primary-hover: #123a7d;  /* a bit darker, for hover/pressed */
+  --primary-soft: #e8eef8;   /* very light blue: highlighted cards, badges */
+  --on-primary: #ffffff;     /* text on top of a primary background */
+
+  /* page */
+  --background: #f6f8fb;     /* page background */
+  --surface: #ffffff;        /* cards, header */
+  --foreground: #14213d;     /* main text */
+  --muted: #5b6478;          /* secondary text, timestamps */
+  --border: #dde3ec;
+
+  /* canteen status (quiet / busy / packed). Dark enough that white text
+     on top stays readable, so the same values work in dark mode. */
+  --quiet: #1b7f48;
+  --busy: #a15f00;
+  --packed: #c42b2b;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark mode: follows the phone/computer setting automatically. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --primary: #3f72d6;      /* lighter blue so it stands out on dark */
+    --primary-hover: #5585e0;
+    --primary-soft: #1a2a4d;
+    --on-primary: #ffffff;
+
+    --background: #0e1420;
+    --surface: #172033;
+    --foreground: #e8edf5;
+    --muted: #9aa6ba;
+    --border: #2a3550;
   }
+}
+
+/* Make the variables above available as Tailwind colour classes. */
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-quiet: var(--quiet);
+  --color-busy: var(--busy);
+  --color-packed: var(--packed);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
