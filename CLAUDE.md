@@ -47,7 +47,7 @@ registering, and signal that they (or a group) are on their way.
 - Do NOT enable `cacheComponents` or `partialPrefetching` in
   `next.config.ts`: with the OpenNext adapter they make the Worker hang
   (every page returned 500 on Cloudflare).
-- Live site: https://canteen-status.trimbolic69.workers.dev
+- Live site: https://canteen-status.n0146.workers.dev
   Cloudflare builds and deploys automatically on every push to `main`.
 
 - Windows machine. OpenNext warns it is not fully supported on Windows;
